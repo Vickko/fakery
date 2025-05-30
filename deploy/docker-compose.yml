@@ -1,0 +1,76 @@
+name: fakery-project 
+version: '3.8'
+
+services:
+
+  # etcd 服务注册和配置中心
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.9
+    container_name: fakery-etcd
+    restart: unless-stopped
+    ports:
+      - "2379:2379"  # etcd client port
+      - "2380:2380"  # etcd peer port
+    environment:
+      - ETCD_NAME=etcd-server
+      - ETCD_DATA_DIR=/etcd-data
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER=etcd-server=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster-1
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_AUTO_COMPACTION_RETENTION=1
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_HEARTBEAT_INTERVAL=250
+      - ETCD_ELECTION_TIMEOUT=1250
+    volumes:
+      - etcd_data:/etcd-data
+    networks:
+      - fakery-network
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # Fakery 应用服务
+  fakery:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: fakery-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"  # HTTP 端口
+      - "9000:9000"  # gRPC 端口
+    volumes:
+      - ../configs:/data/conf
+    networks:
+      - fakery-network
+    environment:
+      - TZ=Asia/Shanghai
+      - ENVIRONMENT=docker
+    depends_on:
+      etcd:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"] 
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  etcd_data:
+    driver: local
+
+networks:
+  fakery-network:
+    driver: bridge

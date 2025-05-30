@@ -8,6 +8,7 @@ package main
 
 import (
 	"fakery/internal/biz"
+	"fakery/internal/client/etcd"
 	"fakery/internal/conf"
 	"fakery/internal/data"
 	"fakery/internal/server"
@@ -33,8 +34,15 @@ func wireApp(confServer *conf.Server, confData *conf.Data, logger log.Logger) (*
 	greeterService := service.NewGreeterService(greeterUsecase)
 	grpcServer := server.NewGRPCServer(confServer, greeterService, logger)
 	httpServer := server.NewHTTPServer(confServer, greeterService, logger)
-	app := newApp(logger, grpcServer, httpServer)
+	etcdClient, cleanup2, err := etcd.NewEtcdClient(confServer, logger)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	registry := server.NewRegistry(etcdClient, logger)
+	app := newApp(logger, grpcServer, httpServer, registry)
 	return app, func() {
+		cleanup2()
 		cleanup()
 	}, nil
 }

@@ -8,7 +8,7 @@ server:
   # etcd config
   etcd:
     endpoints:
-      - "localhost:2379"
+      - "etcd:2379"
     timeout: 5s
     # 服务注册配置
     registry:
